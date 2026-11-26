@@ -174,7 +174,7 @@ public final class ProxyServer: @unchecked Sendable {
             if first == 0x05 {
                 try handleSOCKS5(client: client)
             } else {
-                try handleHTTP(client: client, firstByte: first)
+                try handleHTTP(client: client)
             }
         } catch {
             Log.shared.debug("proxy", "连接结束：\(error.localizedDescription)")
@@ -238,8 +238,10 @@ public final class ProxyServer: @unchecked Sendable {
         relay(client: client, upstream: upstream, egress: egress)
     }
 
-    private func handleHTTP(client: Int32, firstByte: UInt8) throws {
-        var buffer = Data([firstByte])
+    private func handleHTTP(client: Int32) throws {
+        // The sniffing recv above used MSG_PEEK, so the first byte is still
+        // queued; read the whole header from the socket instead of seeding it.
+        var buffer = Data()
         let deadline = Date().addingTimeInterval(handshakeTimeout)
         while buffer.range(of: Data("\r\n\r\n".utf8)) == nil {
             guard Date() < deadline else { throw ProxyError.badRequest("请求头超时") }
