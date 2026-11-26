@@ -134,6 +134,9 @@ public struct ProxySettings: Codable, Sendable, Equatable {
     /// routing through links whose state could not be verified. Intended for
     /// single-link debugging; off by default.
     public var allowUnverifiedEgress: Bool = false
+    /// Also point the macOS system proxy at the local listener, so Safari and
+    /// Chrome use it without manual configuration.
+    public var systemProxy: Bool = true
 
     public init() {}
 
@@ -146,6 +149,7 @@ public struct ProxySettings: Codable, Sendable, Equatable {
         allowLAN = try c.decodeIfPresent(Bool.self, forKey: .allowLAN) ?? false
         maxConnections = try c.decodeIfPresent(Int.self, forKey: .maxConnections) ?? 512
         allowUnverifiedEgress = try c.decodeIfPresent(Bool.self, forKey: .allowUnverifiedEgress) ?? false
+        systemProxy = try c.decodeIfPresent(Bool.self, forKey: .systemProxy) ?? true
     }
 }
 

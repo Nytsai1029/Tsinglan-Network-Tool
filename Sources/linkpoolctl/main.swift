@@ -57,7 +57,7 @@ case "status", "check":
     printStatus(config, sessions)
 
 case "login", "logout":
-    guard args.count >= 2 else { FileHandle.standardError.write(Data("用法: linkpoolctl \(command) <链路名|IP|UUID>".utf8)); exit(2) }
+    guard args.count >= 2 else { FileHandle.standardError.write(Data("用法: linkpoolctl \(command) <链路名|IP|UUID> [--password-file <路径>]".utf8)); exit(2) }
     let store = ConfigStore.shared
     let config = store.load()
     guard let egress = findEgress(args[1], in: config) else {
@@ -67,7 +67,12 @@ case "login", "logout":
     sessions.start()
     sessions.update(config: config)
     if command == "login" {
-        sessions.login(egressID: egress.id)
+        var password: String?
+        if let flag = args.firstIndex(of: "--password-file"), args.count > flag + 1 {
+            password = (try? String(contentsOfFile: args[flag + 1], encoding: .utf8))?
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+        sessions.login(egressID: egress.id, passwordOverride: password)
         for _ in 0..<40 {
             Thread.sleep(forTimeInterval: 0.5)
             let snapshot = sessions.snapshot(for: egress.id)
@@ -107,6 +112,32 @@ case "secret":
         exit(1)
     }
 
+case "sysproxy":
+    let store = ConfigStore.shared
+    let config = store.load()
+    let state = SystemProxy.current()
+    let service = args.count >= 3 ? args[2] : SystemProxy.primaryServiceName()
+    print("网络服务: \(service ?? "未找到默认网络服务")")
+    print("系统代理: \(state.isEnabled ? "开" : "关")\(state.host.map { " · \($0):\(state.port ?? 0)" } ?? "")")
+    if let service, let entry = SystemProxy.serviceProxy(service) {
+        print("服务「\(service)」: \(entry.enabled ? "开" : "关") · \(entry.host):\(entry.port)")
+    }
+    if args.count >= 2 {
+        guard let service else { exit(1) }
+        switch args[1] {
+        case "on":
+            let (ok, message) = SystemProxy.enable(service: service, host: config.proxy.host, port: config.proxy.port)
+            print(ok ? "已开启系统代理 → \(config.proxy.host):\(config.proxy.port)" : "开启失败: \(message)")
+            exit(ok ? 0 : 1)
+        case "off":
+            let (ok, message) = SystemProxy.disable(service: service)
+            print(ok ? "已关闭系统代理" : "关闭失败: \(message)")
+            exit(ok ? 0 : 1)
+        default:
+            print("用法: linkpoolctl sysproxy [on|off]")
+        }
+    }
+
 case "serve":
     let store = ConfigStore.shared
     let config = store.load()
@@ -138,6 +169,7 @@ default:
       logout <链路>         注销指定链路（显式操作）
       serve                 前台运行代理
       secret <账号>         检查账号密码是否在钥匙串中
+      sysproxy [on|off] [服务] 查看/设置 macOS 系统代理（默认当前网络服务）
 
     配置目录：\(AppPaths.supportDirectory.path)
     """)

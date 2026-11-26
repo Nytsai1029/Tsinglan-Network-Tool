@@ -43,6 +43,8 @@ final class AppModel: ObservableObject {
     @Published private(set) var totalUp: Double = 0
     @Published private(set) var history: [SpeedPoint] = []
     @Published private(set) var proxyState: ProxyServer.State = .stopped
+    @Published private(set) var systemProxyOn: Bool = SystemProxy.current().isEnabled
+    @Published private(set) var systemProxyBusy = false
     @Published private(set) var logs: [LogEntry] = []
     @Published private(set) var interfaces: [InterfaceInfo] = []
     @Published var selection: SidebarItem = .overview {
@@ -62,6 +64,9 @@ final class AppModel: ObservableObject {
     private var lastTotals: [UUID: TrafficMetrics.Totals] = [:]
     private var lastSampleAt = Date()
     private var cancellables = Set<AnyCancellable>()
+    /// True only when this app turned the system proxy on; quitting must not
+    /// disable a proxy the user configured elsewhere.
+    private var systemProxyOwned = false
 
     // MARK: - Init
 
@@ -74,7 +79,13 @@ final class AppModel: ObservableObject {
         self.proxy = ProxyServer(sessions: sessions, configProvider: { box.value })
 
         proxy.onStateChange = { [weak self] state in
-            Task { @MainActor in self?.proxyState = state }
+            Task { @MainActor in
+                guard let self else { return }
+                self.proxyState = state
+                if case .failed = state, self.systemProxyOwned {
+                    self.setSystemProxy(false)
+                }
+            }
         }
         NotificationCenter.default.publisher(for: .linkPoolSessionsDidChange)
             .receive(on: RunLoop.main)
@@ -85,6 +96,10 @@ final class AppModel: ObservableObject {
             .sink { [weak self] _ in self?.refreshLogs() }
             .store(in: &cancellables)
 
+        if SystemProxy.pendingSnapshot() != nil {
+            systemProxyOwned = true
+            Log.shared.warn("systemproxy", "检测到上次遗留的系统代理备份，将在启动后尝试恢复")
+        }
         if let raw = UserDefaults.standard.string(forKey: Self.selectionKey),
            let saved = SidebarItem(rawValue: raw) {
             selection = saved
@@ -235,13 +250,73 @@ final class AppModel: ObservableObject {
         do {
             if case .running = proxy.state {
                 proxy.stop()
+                if config.proxy.systemProxy { setSystemProxy(false) }
             } else {
                 try proxy.start()
+                if config.proxy.systemProxy { setSystemProxy(true) }
             }
         } catch {
             proxyState = .failed(error.localizedDescription)
             flash(error.localizedDescription)
         }
+    }
+
+    /// Applies the "use system proxy" switch immediately while running.
+    func applySystemProxySetting() {
+        guard case .running = proxy.state else { return }
+        setSystemProxy(config.proxy.systemProxy)
+    }
+
+    func refreshSystemProxyState() {
+        systemProxyOn = SystemProxy.current().isEnabled
+    }
+
+    private func setSystemProxy(_ on: Bool) {
+        guard !systemProxyBusy else { return }
+        guard let service = SystemProxy.primaryServiceName() else {
+            flash("找不到默认网络服务，无法设置系统代理")
+            return
+        }
+        systemProxyBusy = true
+        let host = config.proxy.host
+        let port = config.proxy.port
+        Task { @MainActor in
+            let result: (Bool, String) = await withCheckedContinuation { continuation in
+                DispatchQueue.global(qos: .userInitiated).async {
+                    let value = on
+                        ? SystemProxy.enable(service: service, host: host, port: port)
+                        : SystemProxy.disable(service: service)
+                    continuation.resume(returning: value)
+                }
+            }
+            systemProxyBusy = false
+            if result.0 {
+                systemProxyOn = on
+                systemProxyOwned = on
+                flash(on ? "系统代理已开启，浏览器将使用 \(host):\(port)" : "系统代理已关闭")
+            } else {
+                systemProxyOn = on ? false : systemProxyOn
+                flash("系统代理设置失败：\(result.1)")
+            }
+        }
+    }
+
+    /// A crash can leave the macOS proxy pointing at a port that is no longer
+    /// listening; restore it as soon as the app comes back.
+    func recoverStaleSystemProxy() {
+        guard SystemProxy.current().isEnabled,
+              let snapshot = SystemProxy.pendingSnapshot() else { return }
+        Log.shared.warn("systemproxy", "恢复上次遗留的系统代理设置（服务：\(snapshot.service)）")
+        setSystemProxy(false)
+    }
+
+    /// Called on quit. Only undoes a change this app made.
+    func shutdown() {
+        guard systemProxyOwned else { return }
+        let service = SystemProxy.pendingSnapshot()?.service ?? SystemProxy.primaryServiceName() ?? ""
+        guard !service.isEmpty else { return }
+        _ = SystemProxy.disable(service: service)
+        systemProxyOwned = false
     }
 
     // MARK: - Refresh

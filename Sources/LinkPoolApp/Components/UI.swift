@@ -56,7 +56,6 @@ struct PhaseDot: View {
         case .offline: return .secondary
         case .disabled: return .gray.opacity(0.5)
         case .unknown: return .secondary
-        case .unverified: return .orange.opacity(0.6)
         case .unverified: return .orange
         }
     }

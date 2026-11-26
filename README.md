@@ -44,16 +44,18 @@ swift build --disable-sandbox
 open dist/LinkPool.app
 ```
 
-`swift test --disable-sandbox` 运行单元测试（Srun / 华为 RC4 加密向量、分流策略，共 16 项）。
+`swift test --disable-sandbox` 运行单元测试（Srun / 华为 RC4 加密向量、分流策略，共 17 项）。
 
 ## 使用
 
 1. 打开 App，首次会显示控制面板；关闭窗口后留在菜单栏。
 2. 「账号」添加校园网账号（密码存 Keychain）。
 3. 「链路」把当前网卡地址添加为链路，并绑定账号。
-4. 「代理」启动，得到 `127.0.0.1:7890`。把下载器/浏览器代理指向它：
+4. 「代理」启动，得到 `127.0.0.1:7890`。默认会同时勾选「同时设置 macOS 系统代理」，启动时代入、停止时**原样恢复**，所以 Safari / Chrome 无需手动配置。若取消勾选，则自己把应用代理指向：
    - SOCKS5：`socks5h://127.0.0.1:7890`
    - HTTP：`http://127.0.0.1:7890`
+
+   > 系统代理开关会在修改前备份当前 Wi-Fi 代理配置（主机、端口、状态、绕过列表），停止代理或退出应用时恢复。若应用被强制结束导致浏览器断网，运行 `linkpoolctl sysproxy off` 即可恢复。
 5. 多链路时，下载器的多线程/Range 分段会自动分散到各出口。单个大文件想跑满，用多连接下载器，例如：
 
    ```bash
@@ -70,6 +72,7 @@ open dist/LinkPool.app
 .build/debug/linkpoolctl serve          # 前台跑代理，Ctrl-C 退出
 .build/debug/linkpoolctl login "Wi-Fi 主链路"
 .build/debug/linkpoolctl secret 主账号      # 只检查密码是否在钥匙串中，不显示密码
+.build/debug/linkpoolctl sysproxy off    # 强制恢复系统代理（崩溃/强退后救援）
 ```
 
 配置目录：`~/Library/Application Support/LinkPool/config.json`

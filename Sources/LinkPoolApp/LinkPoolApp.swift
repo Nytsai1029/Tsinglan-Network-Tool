@@ -36,6 +36,7 @@ struct MenuBarLabel: View {
     }
 }
 
+@MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private var window: NSWindow?
 
@@ -82,5 +83,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
     func windowWillClose(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
+    }
+
+    func applicationWillTerminate(_ notification: Notification) {
+        AppModel.shared.shutdown()
     }
 }

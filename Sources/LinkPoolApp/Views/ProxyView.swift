@@ -59,6 +59,10 @@ struct ProxyView: View {
                         .foregroundStyle(.secondary)
                     }
                     .padding(.top, 2)
+                    if isRunning && !model.systemProxyOn {
+                        Text("浏览器还没有走代理：在下方打开「同时设置 macOS 系统代理」")
+                            .font(.caption).foregroundStyle(.orange)
+                    }
                 }
                 Spacer()
                 Button {
@@ -130,6 +134,32 @@ struct ProxyView: View {
                         Text("修改后需重启代理").font(.caption2).foregroundStyle(.tertiary)
                     }
                 }
+
+                Divider()
+
+                HStack(alignment: .top, spacing: 12) {
+                    Toggle(isOn: Binding(
+                        get: { model.config.proxy.systemProxy },
+                        set: { model.config.proxy.systemProxy = $0; model.persist(); model.applySystemProxySetting() }
+                    )) {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("同时设置 macOS 系统代理").font(.callout.weight(.medium))
+                            Text("Safari / Chrome 会自动使用 \(model.proxyAddress)；停止代理时恢复原状（需要管理员授权）")
+                                .font(.caption).foregroundStyle(.secondary)
+                        }
+                    }
+                    .toggleStyle(.switch)
+                    .controlSize(.small)
+                    Spacer()
+                    if model.systemProxyBusy {
+                        ProgressView().controlSize(.small)
+                    } else if model.systemProxyOn {
+                        Label("已生效", systemImage: "checkmark.circle.fill")
+                            .font(.caption).foregroundStyle(.green)
+                    } else {
+                        Text("未设置").font(.caption).foregroundStyle(.tertiary)
+                    }
+                }
             }
         }
     }
@@ -174,7 +204,7 @@ struct ProxyView: View {
     private var usage: some View {
         Card {
             VStack(alignment: .leading, spacing: 10) {
-                SectionTitle(text: "如何让应用使用代理", subtitle: "LinkPool 不修改系统全局代理，避免影响其他调试")
+                SectionTitle(text: "如何让应用使用代理", subtitle: "优先用上面的系统代理开关；也可在单个应用里手动填这个地址")
                 HStack(alignment: .top, spacing: 10) {
                     Text("SOCKS5").font(.caption.weight(.semibold)).frame(width: 62, alignment: .leading)
                     Text("\(model.proxyAddress)").font(.system(.caption, design: .monospaced)).textSelection(.enabled)

@@ -120,11 +120,13 @@ public final class SessionManager: @unchecked Sendable {
     }
 
     /// Explicit user-initiated login. Safe: never touches other egresses.
-    public func login(egressID: UUID) {
+    /// Logs one egress in. `passwordOverride` exists for headless testing and
+    /// for callers that already hold the secret; nil means "read Keychain".
+    public func login(egressID: UUID, passwordOverride: String? = nil) {
         control.async { [weak self] in
             guard let self, let egress = self.config.egresses.first(where: { $0.id == egressID }) else { return }
             let cfg = self.config
-            self.work.async { self.performLogin(egress: egress, config: cfg) }
+            self.work.async { self.performLogin(egress: egress, config: cfg, passwordOverride: passwordOverride) }
         }
     }
 
@@ -223,7 +225,7 @@ public final class SessionManager: @unchecked Sendable {
         performLogin(egress: egress, config: cfg)
     }
 
-    private func performLogin(egress: Egress, config cfg: AppConfig) {
+    private func performLogin(egress: Egress, config cfg: AppConfig, passwordOverride: String? = nil) {
         guard let addr = IPv4Address(egress.localAddress) else { return }
         guard let account = cfg.account(id: egress.accountID) else {
             mutate(egress.id) { $0.phase = .failed; $0.lastError = "未绑定账号" }
@@ -243,7 +245,7 @@ public final class SessionManager: @unchecked Sendable {
             }
             return
         }
-        guard let password = Keychain.get(account.secretKey), !password.isEmpty else {
+        guard let password = passwordOverride ?? Keychain.get(account.secretKey), !password.isEmpty else {
             mutate(egress.id) { $0.phase = .failed; $0.lastError = "钥匙串中没有密码" }
             return
         }

@@ -168,7 +168,7 @@ struct SettingsView: View {
     private var aboutCard: some View {
         Card {
             VStack(alignment: .leading, spacing: 8) {
-                SectionTitle(text: "关于 LinkPool", subtitle: "版本 \(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "0.2.1") · 原生 SwiftUI · 无第三方依赖")
+                SectionTitle(text: "关于 LinkPool", subtitle: "版本 \(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "0.2.2") · 原生 SwiftUI · 无第三方依赖")
                 Text("LinkPool 只在你主动操作时登录校园网账号，不会自动注销会话，也不会绕过学校的安全策略。请仅使用你拥有或获得明确授权的账号。")
                     .font(.caption).foregroundStyle(.secondary)
             }
