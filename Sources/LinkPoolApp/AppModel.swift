@@ -123,11 +123,12 @@ final class AppModel: ObservableObject {
         updated.name = account.name.trimmingCharacters(in: .whitespacesAndNewlines)
         updated.updatedAt = Date()
         config.upsert(account: updated)
+        var secretOK = true
         if let password, !password.isEmpty {
-            Keychain.set(password, for: updated.secretKey)
+            secretOK = Keychain.set(password, for: updated.secretKey)
         }
         persist(immediate: true)
-        flash("已保存账号 \(updated.name)")
+        flash(secretOK ? "已保存账号 \(updated.name)" : "账号已保存，但密码写入钥匙串失败，请重试")
     }
 
     func deleteAccount(_ account: Account) {
@@ -156,6 +157,16 @@ final class AppModel: ObservableObject {
         guard !duplicate else {
             flash("该地址已经是一条链路，不能重复添加")
             return false
+        }
+        if egress.kind != .alias {
+            guard let iface = interfaces.first(where: { $0.name == egress.interfaceName }) else {
+                flash("网卡 \(egress.interfaceName) 当前不存在，请重新选择")
+                return false
+            }
+            guard iface.addresses.contains(where: { $0.address.description == egress.localAddress }) else {
+                flash("该地址不在 \(iface.name) 上：请选择网卡现有地址，或打开「额外 IP」由应用自动添加")
+                return false
+            }
         }
         config.upsert(egress: egress)
         persist(immediate: true)
@@ -241,6 +252,27 @@ final class AppModel: ObservableObject {
             // they cannot reach the campus network and only add noise.
             iface.addresses.contains { !$0.address.isLinkLocal } || iface.isDefaultRoute
         }
+        reconcilePhysicalAddresses()
+    }
+
+    /// Campus DHCP hands out a new address after every reconnect. A physical
+    /// egress pinned to the previous lease would fail with EADDRNOTAVAIL, so
+    /// quietly follow the interface's address when it is unambiguous.
+    private func reconcilePhysicalAddresses() {
+        var changed = false
+        for index in config.egresses.indices {
+            let egress = config.egresses[index]
+            guard egress.kind == .physical,
+                  let iface = interfaces.first(where: { $0.name == egress.interfaceName }) else { continue }
+            let addresses = iface.addresses.map(\.address.description)
+            guard !addresses.contains(egress.localAddress) else { continue }
+            let usable = iface.addresses.filter { !$0.address.isLinkLocal }.map(\.address.description)
+            guard usable.count == 1, let fresh = usable.first else { continue }
+            config.egresses[index].localAddress = fresh
+            Log.shared.info("app", "链路 \(egress.name) 的源地址随 DHCP 更新为 \(fresh)")
+            changed = true
+        }
+        if changed { persist() }
     }
 
     func refreshRuntime() {

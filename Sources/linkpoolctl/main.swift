@@ -90,6 +90,23 @@ case "login", "logout":
         exit(failure == nil ? 0 : 1)
     }
 
+case "secret":
+    let store = ConfigStore.shared
+    let config = store.load()
+    guard let name = args.dropFirst().first,
+          let account = config.accounts.first(where: {
+              $0.name == name || $0.username == name
+                  || $0.id.uuidString.lowercased().hasPrefix(name.lowercased())
+          }) else {
+        FileHandle.standardError.write(Data("用法: linkpoolctl secret <账号名|用户名|UUID>".utf8)); exit(2)
+    }
+    if let value = Keychain.get(account.secretKey) {
+        print("\(account.username): 钥匙串中已保存密码（\(value.count) 个字符）")
+    } else {
+        print("\(account.username): 钥匙串中没有密码")
+        exit(1)
+    }
+
 case "serve":
     let store = ConfigStore.shared
     let config = store.load()
@@ -120,6 +137,7 @@ default:
       login <链路>          登录指定链路
       logout <链路>         注销指定链路（显式操作）
       serve                 前台运行代理
+      secret <账号>         检查账号密码是否在钥匙串中
 
     配置目录：\(AppPaths.supportDirectory.path)
     """)

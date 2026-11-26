@@ -24,7 +24,7 @@
 | --- | --- |
 | 账号 | 增删改，密码写入 Keychain，支持备注与启用/停用 |
 | 链路 | 自动发现网卡与地址；可添加物理链路或 IP 别名；绑定账号、权重、自动登录开关 |
-| 会话 | 周期检查在线状态，指数退避重试，失败不影响其它链路；登录请求绑定源地址，保证会话落在正确的 IP 上 |
+| 会话 | 周期检查在线状态，指数退避重试，失败不影响其它链路；登录请求绑定源地址，保证会话落在正确的 IP 上；物理链路会跟随 DHCP 续约自动更新源地址 |
 | 代理 | SOCKS5（CONNECT）+ HTTP（CONNECT / 绝对 URI）；轮询 / 最少连接 / 加权随机；可选按域名粘滞 |
 | 观测 | 每条链路实时速率、累计流量、活动连接数；菜单栏显示总速率；内置日志查看器 |
 | 诊断 | `linkpoolctl` 命令行可查网卡、查状态、登录/注销单条链路、前台跑代理 |
@@ -69,6 +69,7 @@ open dist/LinkPool.app
 .build/debug/linkpoolctl status
 .build/debug/linkpoolctl serve          # 前台跑代理，Ctrl-C 退出
 .build/debug/linkpoolctl login "Wi-Fi 主链路"
+.build/debug/linkpoolctl secret 主账号      # 只检查密码是否在钥匙串中，不显示密码
 ```
 
 配置目录：`~/Library/Application Support/LinkPool/config.json`
@@ -87,6 +88,8 @@ open dist/LinkPool.app
 在线判定不依赖门户页面：先请求 `edge-http.microsoft.com/captiveportal/generate_204`，204 即在线；被 302 到 `ac_portal` 即未认证。DNS 被拦截时回退到门户根路径，按其跳转目标（`/homepage/...` 或 `/ac_portal/...`）判断。
 
 这台学校的 `http://4.3.2.1` 在已登录状态下只暴露 Srun 自助服务；登录页 `/ac_portal/20231023153358/pc.html` 只在未认证 IP 上由 AC 下发。华为适配器是按该页面的 `logic_new.js` 实现的。真实登录建议用**额外的测试账号 + 另一个源 IP**（例如多拨别名或第二个网口）验证，这样不需要断开当前正在使用的会话。
+
+> 钥匙串说明：应用以 ad-hoc 签名分发，重新构建后签名哈希会变化，macOS 可能拒绝旧的钥匙串条目。应用会自动回退到系统 `security` 命令读取/写入，因此重编译不会丢密码；若仍失败，重新保存一次账号密码即可。
 
 若门户接口不可用，可在「代理」里打开**允许未验证链路**：代理仍会经该链路转发，但无法确认账号是否在线，仅建议排障时使用。
 
