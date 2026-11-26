@@ -1,0 +1,4 @@
+.build/
+dist/
+.DS_Store
+packaging/icon_1024.png
