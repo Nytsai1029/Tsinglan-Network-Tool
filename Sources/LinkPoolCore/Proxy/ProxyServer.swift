@@ -313,13 +313,10 @@ public final class ProxyServer: @unchecked Sendable {
                 return phase == .unknown || phase == .unverified
             }
         }
-        guard let egress = selector.select(from: candidates, host: host,
-                                           strategy: config.proxy.strategy,
-                                           stickySeconds: config.proxy.stickySeconds) else {
+        guard !candidates.isEmpty else {
             Log.shared.warn("proxy", "没有在线链路可用于 \(host):\(port)")
             return nil
         }
-        guard let addr = IPv4Address(egress.localAddress) else { return nil }
 
         let resolved: String
         if IPv4Address(host) != nil {
@@ -331,12 +328,34 @@ public final class ProxyServer: @unchecked Sendable {
             return nil
         }
 
-        let source = EgressSource(address: addr, interfaceName: egress.interfaceName)
-        let fd = try SocketBox.open(host: resolved, port: port, source: source, timeout: handshakeTimeout)
-        selector.connectionOpened(egress.id)
-        metrics.connectionOpened(egress.id)
-        Log.shared.debug("proxy", "\(host):\(port) → \(egress.name) [\(egress.localAddress)]")
-        return (fd, egress.id)
+        // Try up to three distinct egresses: one dead uplink should not fail
+        // the whole request while others are healthy.
+        var pool = candidates
+        var lastError: Error?
+        while !pool.isEmpty {
+            guard let egress = selector.select(from: pool, host: host,
+                                               strategy: config.proxy.strategy,
+                                               stickySeconds: config.proxy.stickySeconds) else { break }
+            pool.removeAll { $0.id == egress.id }
+            guard let addr = IPv4Address(egress.localAddress) else { continue }
+
+            let source = EgressSource(address: addr, interfaceName: egress.interfaceName)
+            do {
+                let fd = try SocketBox.open(host: resolved, port: port, source: source,
+                                            timeout: handshakeTimeout)
+                selector.connectionOpened(egress.id)
+                metrics.connectionOpened(egress.id)
+                Log.shared.debug("proxy", "\(host):\(port) → \(egress.name) [\(egress.localAddress)]")
+                return (fd, egress.id)
+            } catch {
+                lastError = error
+                Log.shared.warn("proxy", "出口 \(egress.name) 连接 \(host):\(port) 失败：\(error.localizedDescription)")
+            }
+        }
+        if let lastError {
+            Log.shared.warn("proxy", "所有出口均失败：\(lastError.localizedDescription)")
+        }
+        return nil
     }
 
     // MARK: - Relay

@@ -45,7 +45,9 @@ final class AppModel: ObservableObject {
     @Published private(set) var proxyState: ProxyServer.State = .stopped
     @Published private(set) var logs: [LogEntry] = []
     @Published private(set) var interfaces: [InterfaceInfo] = []
-    @Published var selection: SidebarItem = .overview
+    @Published var selection: SidebarItem = .overview {
+        didSet { UserDefaults.standard.set(selection.rawValue, forKey: Self.selectionKey) }
+    }
     @Published var lastActionMessage: String?
     @Published var isBusy = false
 
@@ -53,6 +55,7 @@ final class AppModel: ObservableObject {
 
     let sessions: SessionManager
     let proxy: ProxyServer
+    private static let selectionKey = "sidebarSelection"
     private let store = ConfigStore.shared
     private let configBox: ConfigBox
     private var sampleTimer: Timer?
@@ -81,6 +84,11 @@ final class AppModel: ObservableObject {
             .receive(on: RunLoop.main)
             .sink { [weak self] _ in self?.refreshLogs() }
             .store(in: &cancellables)
+
+        if let raw = UserDefaults.standard.string(forKey: Self.selectionKey),
+           let saved = SidebarItem(rawValue: raw) {
+            selection = saved
+        }
 
         sessions.start()
         refreshInterfaces()
