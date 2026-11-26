@@ -233,6 +233,16 @@ public final class SessionManager: @unchecked Sendable {
             mutate(egress.id) { $0.phase = .failed; $0.lastError = "账号已停用" }
             return
         }
+        // One account = one session. Logging the same account in twice can kick
+        // the older session off the portal, so refuse before touching the network.
+        if let other = cfg.egresses.first(where: { $0.id != egress.id && $0.accountID == account.id }),
+           snapshot(for: other.id).phase == .online {
+            mutate(egress.id) {
+                $0.phase = .failed
+                $0.lastError = "该账号已在「\(other.name)」在线；每条链路需要一个独立账号"
+            }
+            return
+        }
         guard let password = Keychain.get(account.secretKey), !password.isEmpty else {
             mutate(egress.id) { $0.phase = .failed; $0.lastError = "钥匙串中没有密码" }
             return
