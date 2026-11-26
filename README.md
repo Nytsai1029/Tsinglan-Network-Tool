@@ -44,7 +44,7 @@ swift build --disable-sandbox
 open dist/LinkPool.app
 ```
 
-`swift test --disable-sandbox` 运行单元测试（Srun 加密向量、分流策略）。
+`swift test --disable-sandbox` 运行单元测试（Srun / 华为 RC4 加密向量、分流策略，共 12 项）。
 
 ## 使用
 
@@ -69,20 +69,20 @@ open dist/LinkPool.app
 日志：`~/Library/Logs/LinkPool.log`（2 MB 轮转）
 调试时可设 `LINKPOOL_HOME=/tmp/xxx` 隔离配置。
 
-## 门户适配现状（重要）
+## 门户协议
 
-内置的是**标准 Srun 4.0** 协议（`/cgi-bin/get_challenge`、`/cgi-bin/srun_portal`、`/cgi-bin/rad_user_info`），并已用公开实现做过逐字节向量验证。
+内置两种适配器，可在「设置 → 门户 → 协议」切换：
 
-但本机实测 `http://4.3.2.1` 只暴露了 Srun **自助服务**（`/homepage/index.html`、`/homepage/info.php`），标准接口全部返回 404。也就是说：这台设备上的登录页由 AC 在**未认证时**下发，当前已登录的 IP 拿不到该页面，无法从本机推断真实登录接口。
+| 协议 | 说明 |
+| --- | --- |
+| **华为 AC（ac_portal）** | 默认。`POST /ac_portal/login.php`，字段 `opr=pwdLogin`、`userName`、`pwd`、`auth_tag`、`rememberPwd`；`pwd` 是「毫秒时间戳为密钥的 RC4」十六进制串，`auth_tag` 就是该时间戳。请求按源地址绑定，AC 依据 TCP 源 IP 建立会话。 |
+| **深澜 Srun 4.x** | `/cgi-bin/get_challenge` + `/cgi-bin/srun_portal`，HMAC-MD5 + XXTEA（`{SRBX1}` 自定义 base64），已用公开实现的向量逐字节验证。 |
 
-因此自动登录需要一次「登录页抓包」来适配：
+在线判定不依赖门户页面：先请求 `edge-http.microsoft.com/captiveportal/generate_204`，204 即在线；被 302 到 `ac_portal` 即未认证。DNS 被拦截时回退到门户根路径，按其跳转目标（`/homepage/...` 或 `/ac_portal/...`）判断。
 
-1. 用手机连校园 Wi-Fi（不登录），打开浏览器，记录被跳转到的完整 URL 与页面截图；或
-2. 在电脑上退出登录后，用浏览器开发者工具抓一次登录请求（URL、方法、表单字段）。
+这台学校的 `http://4.3.2.1` 在已登录状态下只暴露 Srun 自助服务；登录页 `/ac_portal/20231023153358/pc.html` 只在未认证 IP 上由 AC 下发。华为适配器是按该页面的 `logic_new.js` 实现的，真实登录还需用一个**额外的测试账号**（退出当前会话后）验证一次。
 
-拿到后只需新增一个 Portal 适配器（`Sources/LinkPoolCore/Portal/`），上层会话/代理无需改动。
-
-在门户接口不可用时，可在「代理」里打开**允许未验证链路**：代理仍会经该链路转发，但无法确认账号是否在线，仅建议单链路排障使用。
+若门户接口不可用，可在「代理」里打开**允许未验证链路**：代理仍会经该链路转发，但无法确认账号是否在线，仅建议排障时使用。
 
 ## 目录
 
@@ -91,7 +91,7 @@ Sources/
   LinkPoolCore/          # 与 UI 无关的核心库
     Models/              # 数据模型与配置
     Network/             # 网卡、套接字、HTTP 客户端
-    Portal/              # Srun 协议与加密
+    Portal/              # 华为 AC / Srun 协议与加密
     Session/             # 会话生命周期
     Proxy/               # SOCKS5/HTTP 代理、分流、指标
     Support/             # 配置、Keychain、日志、路径、Shell

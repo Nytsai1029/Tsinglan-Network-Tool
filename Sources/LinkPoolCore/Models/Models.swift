@@ -149,8 +149,29 @@ public struct ProxySettings: Codable, Sendable, Equatable {
     }
 }
 
+public enum PortalKind: String, Codable, Sendable, CaseIterable {
+    /// Huawei Agile Controller-Campus `ac_portal` (this school).
+    case huaweiAC = "huawei_ac"
+    /// Srun / 深澜 `srun_portal` (kept for other campuses).
+    case srun = "srun"
+
+    public var displayName: String {
+        switch self {
+        case .huaweiAC: return "华为 AC（ac_portal）"
+        case .srun: return "深澜 Srun"
+        }
+    }
+}
+
 public struct PortalSettings: Codable, Sendable, Equatable {
+    public var kind: PortalKind = .huaweiAC
     public var baseURL: URL = URL(string: "http://4.3.2.1")!
+    /// Huawei AC password-login endpoint.
+    public var huaweiLoginPath: String = "/ac_portal/login.php"
+    /// URL used to tell "online" from "captive portal"; must answer 204 offline.
+    public var captiveCheckURL: String = "http://edge-http.microsoft.com/captiveportal/generate_204"
+
+    // MARK: Srun-only fields
     public var challengePath: String = "/cgi-bin/get_challenge"
     public var loginPath: String = "/cgi-bin/srun_portal"
     public var infoPath: String = "/cgi-bin/rad_user_info"
@@ -167,6 +188,32 @@ public struct PortalSettings: Codable, Sendable, Equatable {
     public var doubleStack: Bool = false
 
     public init() {}
+
+    private enum CodingKeys: String, CodingKey {
+        case kind, baseURL, huaweiLoginPath, captiveCheckURL
+        case challengePath, loginPath, infoPath, logoutPath
+        case entryACID, defaultACID, clientType, clientOS, clientName, n, doubleStack
+    }
+
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        let fallback = PortalSettings()
+        kind = (try? c.decodeIfPresent(PortalKind.self, forKey: .kind)) ?? fallback.kind
+        baseURL = (try? c.decodeIfPresent(URL.self, forKey: .baseURL)) ?? fallback.baseURL
+        huaweiLoginPath = (try? c.decodeIfPresent(String.self, forKey: .huaweiLoginPath)) ?? fallback.huaweiLoginPath
+        captiveCheckURL = (try? c.decodeIfPresent(String.self, forKey: .captiveCheckURL)) ?? fallback.captiveCheckURL
+        challengePath = (try? c.decodeIfPresent(String.self, forKey: .challengePath)) ?? fallback.challengePath
+        loginPath = (try? c.decodeIfPresent(String.self, forKey: .loginPath)) ?? fallback.loginPath
+        infoPath = (try? c.decodeIfPresent(String.self, forKey: .infoPath)) ?? fallback.infoPath
+        logoutPath = (try? c.decodeIfPresent(String.self, forKey: .logoutPath)) ?? fallback.logoutPath
+        entryACID = (try? c.decodeIfPresent(String.self, forKey: .entryACID)) ?? fallback.entryACID
+        defaultACID = (try? c.decodeIfPresent(String.self, forKey: .defaultACID)) ?? fallback.defaultACID
+        clientType = (try? c.decodeIfPresent(String.self, forKey: .clientType)) ?? fallback.clientType
+        clientOS = (try? c.decodeIfPresent(String.self, forKey: .clientOS)) ?? fallback.clientOS
+        clientName = (try? c.decodeIfPresent(String.self, forKey: .clientName)) ?? fallback.clientName
+        n = (try? c.decodeIfPresent(String.self, forKey: .n)) ?? fallback.n
+        doubleStack = (try? c.decodeIfPresent(Bool.self, forKey: .doubleStack)) ?? fallback.doubleStack
+    }
 }
 
 public struct SessionSettings: Codable, Sendable, Equatable {

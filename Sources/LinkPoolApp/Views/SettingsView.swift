@@ -42,7 +42,16 @@ struct SettingsView: View {
     private var portalCard: some View {
         Card {
             VStack(alignment: .leading, spacing: 12) {
-                SectionTitle(text: "门户", subtitle: "深澜 Srun 4.x 协议；地址与路径可按学校部署调整")
+                SectionTitle(text: "门户", subtitle: "选择学校使用的认证协议，地址可按部署调整")
+                Picker("协议", selection: $model.config.portal.kind) {
+                    ForEach(PortalKind.allCases, id: \.self) { kind in
+                        Text(kind.displayName).tag(kind)
+                    }
+                }
+                .pickerStyle(.segmented)
+                .frame(maxWidth: 360)
+                .onChange(of: model.config.portal.kind) { _, _ in model.persist() }
+
                 LabeledContent("门户地址") {
                     TextField("", text: Binding(
                         get: { model.config.portal.baseURL.absoluteString },
@@ -52,20 +61,38 @@ struct SettingsView: View {
                     .frame(width: 240)
                     .onChange(of: model.config.portal.baseURL) { _, _ in model.persist() }
                 }
-                LabeledContent("入口 ac_id") {
-                    TextField("", text: $model.config.portal.entryACID)
-                        .textFieldStyle(.roundedBorder)
-                        .frame(width: 100)
-                        .onChange(of: model.config.portal.entryACID) { _, _ in model.persist() }
+
+                if model.config.portal.kind == .huaweiAC {
+                    LabeledContent("登录接口") {
+                        TextField("", text: $model.config.portal.huaweiLoginPath)
+                            .textFieldStyle(.roundedBorder)
+                            .frame(width: 240)
+                            .onChange(of: model.config.portal.huaweiLoginPath) { _, _ in model.persist() }
+                    }
+                    LabeledContent("联网探测") {
+                        TextField("", text: $model.config.portal.captiveCheckURL)
+                            .textFieldStyle(.roundedBorder)
+                            .frame(width: 320)
+                            .onChange(of: model.config.portal.captiveCheckURL) { _, _ in model.persist() }
+                    }
+                    Text("华为 AC 登录：POST 表单到登录接口，密码用毫秒时间戳做 RC4 加密；联网探测返回 204 视为已在线。")
+                        .font(.caption2).foregroundStyle(.tertiary)
+                } else {
+                    LabeledContent("入口 ac_id") {
+                        TextField("", text: $model.config.portal.entryACID)
+                            .textFieldStyle(.roundedBorder)
+                            .frame(width: 100)
+                            .onChange(of: model.config.portal.entryACID) { _, _ in model.persist() }
+                    }
+                    LabeledContent("默认 ac_id") {
+                        TextField("", text: $model.config.portal.defaultACID)
+                            .textFieldStyle(.roundedBorder)
+                            .frame(width: 100)
+                            .onChange(of: model.config.portal.defaultACID) { _, _ in model.persist() }
+                    }
+                    Text("真实的 ac_id 在登录页的 CONFIG 中；LinkPool 会优先自动发现，失败才使用默认值。")
+                        .font(.caption2).foregroundStyle(.tertiary)
                 }
-                LabeledContent("默认 ac_id") {
-                    TextField("", text: $model.config.portal.defaultACID)
-                        .textFieldStyle(.roundedBorder)
-                        .frame(width: 100)
-                        .onChange(of: model.config.portal.defaultACID) { _, _ in model.persist() }
-                }
-                Text("真实的 ac_id 在登录页的 CONFIG 中；LinkPool 会优先自动发现，失败才使用默认值。")
-                    .font(.caption2).foregroundStyle(.tertiary)
             }
         }
     }
@@ -141,7 +168,7 @@ struct SettingsView: View {
     private var aboutCard: some View {
         Card {
             VStack(alignment: .leading, spacing: 8) {
-                SectionTitle(text: "关于 LinkPool", subtitle: "版本 \(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "0.1.0") · 原生 SwiftUI · 无第三方依赖")
+                SectionTitle(text: "关于 LinkPool", subtitle: "版本 \(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "0.2.0") · 原生 SwiftUI · 无第三方依赖")
                 Text("LinkPool 只在你主动操作时登录校园网账号，不会自动注销会话，也不会绕过学校的安全策略。请仅使用你拥有或获得明确授权的账号。")
                     .font(.caption).foregroundStyle(.secondary)
             }

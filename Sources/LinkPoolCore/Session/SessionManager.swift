@@ -31,14 +31,14 @@ public final class SessionManager: @unchecked Sendable {
     private var inFlight: Set<UUID> = []
 
     private let configStore: ConfigStore
-    private let client: SrunClient
+    private let portal: PortalService
     private var config: AppConfig
     private var timer: DispatchSourceTimer?
     private var running = false
 
-    public init(configStore: ConfigStore = .shared, client: SrunClient = SrunClient()) {
+    public init(configStore: ConfigStore = .shared, portal: PortalService = PortalService()) {
         self.configStore = configStore
-        self.client = client
+        self.portal = portal
         self.config = configStore.load()
         for egress in config.egresses { runtime[egress.id] = EgressRuntime() }
     }
@@ -134,17 +134,17 @@ public final class SessionManager: @unchecked Sendable {
             guard let self,
                   let egress = self.config.egresses.first(where: { $0.id == egressID }),
                   let account = self.config.account(id: egress.accountID) else {
-                completion?(.failure(SrunError.portalError("该链路没有绑定账号")))
+                completion?(.failure(PortalError.portalError("该链路没有绑定账号")))
                 return
             }
             guard let addr = IPv4Address(egress.localAddress) else {
-                completion?(.failure(SrunError.portalError("链路地址无效")))
+                completion?(.failure(PortalError.portalError("链路地址无效")))
                 return
             }
             let cfg = self.config
             self.work.async {
                 do {
-                    try self.client.logout(username: account.username, clientIP: addr.description,
+                    try self.portal.logout(username: account.username, clientIP: addr.description,
                                            base: account.portalURL, settings: cfg.portal,
                                            source: EgressSource(address: addr, interfaceName: egress.interfaceName))
                     self.mutate(egressID) { $0.phase = .offline; $0.username = nil; $0.onlineSince = nil }
@@ -194,7 +194,7 @@ public final class SessionManager: @unchecked Sendable {
         let account = cfg.account(id: egress.accountID)
         let base = account?.portalURL ?? cfg.portal.baseURL
         let source = EgressSource(address: addr, interfaceName: egress.interfaceName)
-        let status = client.status(clientIP: addr.description, base: base,
+        let status = portal.status(clientIP: addr.description, base: base,
                                    settings: cfg.portal, source: source)
 
         mutate(egress.id) { state in
@@ -241,11 +241,11 @@ public final class SessionManager: @unchecked Sendable {
         mutate(egress.id) { $0.phase = .authenticating; $0.lastError = nil }
         Log.shared.info("session", "\(egress.name) 开始登录 \(account.username)@\(egress.localAddress)")
         do {
-            let result = try client.login(account: account, password: password,
+            let result = try portal.login(account: account, password: password,
                                           clientIP: addr.description, settings: cfg.portal,
                                           source: EgressSource(address: addr, interfaceName: egress.interfaceName))
             usleep(400_000)
-            let status = client.status(clientIP: addr.description, base: account.portalURL,
+            let status = portal.status(clientIP: addr.description, base: account.portalURL,
                                        settings: cfg.portal,
                                        source: EgressSource(address: addr, interfaceName: egress.interfaceName))
             if status.isOnline {
@@ -259,7 +259,7 @@ public final class SessionManager: @unchecked Sendable {
                 }
                 Log.shared.info("session", "\(egress.name) 登录成功：\(result.message)")
             } else {
-                throw SrunError.portalError(status.errorMessage ?? "登录返回成功但会话未建立")
+                throw PortalError.portalError(status.errorMessage ?? "登录返回成功但会话未建立")
             }
         } catch {
             let failures = snapshot(for: egress.id).consecutiveFailures + 1

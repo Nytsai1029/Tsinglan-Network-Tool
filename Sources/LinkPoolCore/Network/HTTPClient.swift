@@ -50,6 +50,30 @@ public final class HTTPClient {
     }
 
     public func get(_ url: URL, headers: [String: String] = [:], source: EgressSource? = nil) throws -> HTTPResponse {
+        try request("GET", url, headers: headers, body: nil, source: source)
+    }
+
+    /// Form-encoded POST (application/x-www-form-urlencoded).
+    public func post(_ url: URL, form: [String: String],
+                     headers: [String: String] = [:],
+                     source: EgressSource? = nil) throws -> HTTPResponse {
+        let encoded = form.keys.sorted().map { key in
+            "\(Self.formEncode(key))=\(Self.formEncode(form[key] ?? ""))"
+        }.joined(separator: "&")
+        var all = headers
+        all["Content-Type"] = "application/x-www-form-urlencoded"
+        all["Content-Length"] = String(encoded.utf8.count)
+        return try request("POST", url, headers: all, body: Data(encoded.utf8), source: source)
+    }
+
+    static func formEncode(_ value: String) -> String {
+        var allowed = CharacterSet.alphanumerics
+        allowed.insert(charactersIn: "-._~")
+        return value.addingPercentEncoding(withAllowedCharacters: allowed) ?? value
+    }
+
+    private func request(_ method: String, _ url: URL, headers: [String: String],
+                         body: Data?, source: EgressSource?) throws -> HTTPResponse {
         guard url.scheme?.lowercased() == "http" else {
             throw HTTPError.unsupportedScheme(url.scheme ?? "?")
         }
@@ -64,7 +88,7 @@ public final class HTTPClient {
         var path = url.path.isEmpty ? "/" : url.path
         if let query = url.query, !query.isEmpty { path += "?" + query }
 
-        var request = "GET \(path) HTTP/1.1\r\n"
+        var request = "\(method) \(path) HTTP/1.1\r\n"
         request += "Host: \(host)" + (port == 80 ? "" : ":\(port)") + "\r\n"
         request += "User-Agent: \(userAgent)\r\n"
         request += "Accept: */*\r\n"
@@ -72,10 +96,12 @@ public final class HTTPClient {
         request += "Connection: close\r\n"
         for (k, v) in headers { request += "\(k): \(v)\r\n" }
         request += "\r\n"
+        var payload = Data(request.utf8)
+        if let body { payload.append(body) }
 
         let fd = try SocketBox.open(host: ip, port: port, source: source, timeout: timeout)
         defer { close(fd) }
-        try SocketBox.writeAll(fd, Data(request.utf8))
+        try SocketBox.writeAll(fd, payload)
 
         var buffer = Data()
         var headerEnd: Range<Data.Index>?
