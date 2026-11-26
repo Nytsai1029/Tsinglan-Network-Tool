@@ -233,7 +233,10 @@ public enum SystemProxy {
         commands += entryCommands(service: snapshot.service, proxy: "webproxy", state: "webproxystate", entry: snapshot.web)
         commands += entryCommands(service: snapshot.service, proxy: "securewebproxy", state: "securewebproxystate", entry: snapshot.secure)
         commands += entryCommands(service: snapshot.service, proxy: "socksfirewallproxy", state: "socksfirewallproxystate", entry: snapshot.socks)
-        if !snapshot.bypass.isEmpty {
+        if snapshot.bypass.isEmpty {
+            // `Empty` is networksetup's documented way to clear the list.
+            commands.append("/usr/sbin/networksetup -setproxybypassdomains \(quote(snapshot.service)) Empty")
+        } else {
             let domains = snapshot.bypass.map(quote).joined(separator: " ")
             commands.append("/usr/sbin/networksetup -setproxybypassdomains \(quote(snapshot.service)) \(domains)")
         }
