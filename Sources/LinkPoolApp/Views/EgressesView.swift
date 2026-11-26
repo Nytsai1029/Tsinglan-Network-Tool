@@ -205,9 +205,9 @@ struct EgressEditorView: View {
     @EnvironmentObject private var model: AppModel
     @State private var draft: Egress
     @State private var wantsAlias = false
-    private let onSave: (Egress) -> Void
+    private let onSave: (Egress) -> Bool
 
-    init(egress: Egress, onSave: @escaping (Egress) -> Void) {
+    init(egress: Egress, onSave: @escaping (Egress) -> Bool) {
         _draft = State(initialValue: egress)
         self.onSave = onSave
         _wantsAlias = State(initialValue: egress.kind == .alias)
@@ -235,7 +235,22 @@ struct EgressEditorView: View {
                             Text(draft.interfaceName).tag(draft.interfaceName)
                         }
                     }
-                    TextField("源 IP 地址", text: $draft.localAddress, prompt: Text("10.10.55.234"))
+                    HStack {
+                        TextField("源 IP 地址", text: $draft.localAddress, prompt: Text("10.10.55.234"))
+                        if wantsAlias {
+                            Button("自动") {
+                                guard let iface = model.interfaces.first(where: { $0.name == draft.interfaceName }),
+                                      let subnet = iface.addresses.first?.subnet else { return }
+                                var used = Set(model.config.egresses.compactMap { IPv4Address($0.localAddress) })
+                                used.formUnion(iface.addresses.map(\.address))
+                                if let pick = subnet.candidateAliases(count: 1, excluding: used).first {
+                                    draft.localAddress = pick.description
+                                }
+                            }
+                            .buttonStyle(.bordered)
+                            .controlSize(.small)
+                        }
+                    }
                     Toggle("这是一个额外 IP（多拨）", isOn: $wantsAlias)
                         .onChange(of: wantsAlias) { _, newValue in
                             draft.kind = newValue ? .alias : .physical
@@ -272,10 +287,9 @@ struct EgressEditorView: View {
                        let addr = IPv4Address(draft.localAddress),
                        !iface.addresses.contains(where: { $0.address == addr }),
                        let subnet = iface.addresses.first?.subnet {
-                        _ = model.addAlias(on: iface, address: addr, netmask: subnet.netmask)
+                        guard model.addAlias(on: iface, address: addr, netmask: subnet.netmask) else { return }
                     }
-                    onSave(draft)
-                    dismiss()
+                    if onSave(draft) { dismiss() }
                 }
                 .keyboardShortcut(.defaultAction)
                 .disabled(draft.name.isEmpty || draft.localAddress.isEmpty || draft.interfaceName.isEmpty)

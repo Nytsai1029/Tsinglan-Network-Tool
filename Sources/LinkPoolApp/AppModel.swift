@@ -111,6 +111,8 @@ final class AppModel: ObservableObject {
 
     func saveAccount(_ account: Account, password: String?) {
         var updated = account
+        updated.username = account.username.trimmingCharacters(in: .whitespacesAndNewlines)
+        updated.name = account.name.trimmingCharacters(in: .whitespacesAndNewlines)
         updated.updatedAt = Date()
         config.upsert(account: updated)
         if let password, !password.isEmpty {
@@ -137,10 +139,20 @@ final class AppModel: ObservableObject {
 
     // MARK: - Egresses
 
-    func saveEgress(_ egress: Egress) {
+    @discardableResult
+    func saveEgress(_ egress: Egress) -> Bool {
+        let duplicate = config.egresses.contains {
+            $0.id != egress.id && $0.interfaceName == egress.interfaceName
+                && $0.localAddress == egress.localAddress
+        }
+        guard !duplicate else {
+            flash("该地址已经是一条链路，不能重复添加")
+            return false
+        }
         config.upsert(egress: egress)
         persist(immediate: true)
         sessions.check(egressID: egress.id, autoLogin: false)
+        return true
     }
 
     func deleteEgress(_ egress: Egress) {

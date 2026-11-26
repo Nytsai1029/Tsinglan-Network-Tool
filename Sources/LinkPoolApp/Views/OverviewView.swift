@@ -57,22 +57,13 @@ struct OverviewView: View {
                     } label: {
                         Label(isProxyRunning ? "停止代理" : "启动代理",
                               systemImage: isProxyRunning ? "stop.fill" : "play.fill")
-                            .frame(minWidth: 92)
+                            .font(.callout.weight(.semibold))
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 9)
+                            .background(Capsule().fill(.white))
+                            .foregroundStyle(Color(red: 0.07, green: 0.22, blue: 0.42))
                     }
-                    .buttonStyle(.borderedProminent)
-                    .tint(.white)
-                    .foregroundStyle(Color(red: 0.08, green: 0.24, blue: 0.44))
-                    .controlSize(.large)
-
-                    Button {
-                        (NSApp.delegate as? AppDelegate)?.showMainWindow()
-                    } label: {
-                        Label("复制地址", systemImage: "doc.on.doc")
-                    }
-                    .buttonStyle(.bordered)
-                    .tint(.white)
-                    .controlSize(.large)
-                    .hidden()
+                    .buttonStyle(.plain)
                 }
                 .padding(.top, 4)
             }

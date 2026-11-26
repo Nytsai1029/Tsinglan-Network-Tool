@@ -185,6 +185,10 @@ struct AccountEditorView: View {
                         get: { draft.portalURL.absoluteString },
                         set: { if let url = URL(string: $0) { draft.portalURL = url } }
                     ), prompt: Text("http://4.3.2.1"))
+                    if !portalURLValid {
+                        Text("门户地址需要以 http:// 开头并包含主机名")
+                            .font(.caption).foregroundStyle(.red)
+                    }
                     TextField("ac_id（可选）", text: Binding(
                         get: { draft.acID ?? "" },
                         set: { draft.acID = $0.isEmpty ? nil : $0 }
@@ -212,7 +216,8 @@ struct AccountEditorView: View {
                 }
                 .keyboardShortcut(.defaultAction)
                 .disabled(draft.username.trimmingCharacters(in: .whitespaces).isEmpty
-                          || (isNew && password.isEmpty))
+                          || (isNew && password.isEmpty)
+                          || !portalURLValid)
             }
             .padding(16)
         }
@@ -222,5 +227,12 @@ struct AccountEditorView: View {
                 password = ""
             }
         }
+    }
+
+    private var portalURLValid: Bool {
+        guard let scheme = draft.portalURL.scheme?.lowercased(),
+              scheme == "http" || scheme == "https",
+              let host = draft.portalURL.host, !host.isEmpty else { return false }
+        return true
     }
 }

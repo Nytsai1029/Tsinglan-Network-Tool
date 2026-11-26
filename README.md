@@ -44,7 +44,7 @@ swift build --disable-sandbox
 open dist/LinkPool.app
 ```
 
-`swift test --disable-sandbox` 运行单元测试（Srun / 华为 RC4 加密向量、分流策略，共 12 项）。
+`swift test --disable-sandbox` 运行单元测试（Srun / 华为 RC4 加密向量、分流策略，共 16 项）。
 
 ## 使用
 
@@ -54,7 +54,13 @@ open dist/LinkPool.app
 4. 「代理」启动，得到 `127.0.0.1:7890`。把下载器/浏览器代理指向它：
    - SOCKS5：`socks5h://127.0.0.1:7890`
    - HTTP：`http://127.0.0.1:7890`
-5. 多链路时，下载器的多线程/Range 分段会自动分散到各出口。
+5. 多链路时，下载器的多线程/Range 分段会自动分散到各出口。单个大文件想跑满，用多连接下载器，例如：
+
+   ```bash
+   aria2c -x16 -s16 -k1M --all-proxy=socks5h://127.0.0.1:7890 https://example.com/big.iso
+   ```
+
+   浏览器自身会并发多个连接；但单连接下载（例如部分网盘直链）只能用到一条链路。
 
 命令行：
 
