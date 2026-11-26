@@ -245,6 +245,7 @@ struct StepRow: View {
 struct EgressCard: View {
     @EnvironmentObject private var model: AppModel
     let egress: Egress
+    @State private var confirmLogout = false
 
     var body: some View {
         Card(padding: 15) {
@@ -285,15 +286,24 @@ struct EgressCard: View {
                     }
                     .controlSize(.small)
                     .buttonStyle(.bordered)
+                    .disabled(snapshot.phase == .online || snapshot.phase == .authenticating || egress.accountID == nil)
+                    .help(egress.accountID == nil ? "先为这条链路绑定账号" : "登录这条链路")
 
                     if snapshot.phase == .online {
                         Button(role: .destructive) {
-                            model.logout(egress: egress)
+                            confirmLogout = true
                         } label: {
                             Image(systemName: "rectangle.portrait.and.arrow.right")
                         }
                         .controlSize(.small)
                         .help("注销此链路（不会影响其他链路）")
+                        .confirmationDialog("确定要注销「\(egress.name)」吗？",
+                                            isPresented: $confirmLogout, titleVisibility: .visible) {
+                            Button("注销这条链路", role: .destructive) { model.logout(egress: egress) }
+                            Button("取消", role: .cancel) {}
+                        } message: {
+                            Text("只会注销这一条校园网会话，其他链路不受影响。")
+                        }
                     }
                 }
             }

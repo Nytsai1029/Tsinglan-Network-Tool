@@ -112,6 +112,8 @@ struct EgressesView: View {
                     HStack(spacing: 6) {
                         Button("登录") { model.login(egress: egress) }
                             .controlSize(.small)
+                            .disabled(snapshot.phase == .online || snapshot.phase == .authenticating || egress.accountID == nil)
+                            .help(egress.accountID == nil ? "先编辑这条链路并绑定账号" : "登录这条链路")
                         Menu {
                             Button("编辑") { editing = egress; showEditor = true }
                             Button(egress.isEnabled ? "停用" : "启用") {
