@@ -73,6 +73,8 @@ struct EgressesView: View {
 
     private func egressRow(_ egress: Egress) -> some View {
         let snapshot = model.snapshot(for: egress)
+        let iface = model.interfaces.first(where: { $0.name == egress.interfaceName })
+        let addressPresent = iface?.addresses.contains(where: { $0.address.description == egress.localAddress }) ?? false
         return Card(padding: 15) {
             HStack(alignment: .top, spacing: 12) {
                 IconBubble(systemName: egress.kind == .alias ? "square.stack.3d.up.fill" : "cable.connector",
@@ -95,7 +97,9 @@ struct EgressesView: View {
                     HStack(spacing: 8) {
                         Label(model.account(id: egress.accountID)?.name ?? "未绑定账号", systemImage: "person")
                         if egress.autoLogin { Label("自动登录", systemImage: "bolt.fill").foregroundStyle(.orange) }
-                        if let error = snapshot.lastError, snapshot.phase != .online {
+                        if egress.kind == .alias && !addressPresent {
+                            Text("地址未添加到网卡").foregroundStyle(.red)
+                        } else if let error = snapshot.lastError, snapshot.phase != .online {
                             Text(error).foregroundStyle(.red).lineLimit(1)
                         }
                     }
@@ -110,6 +114,17 @@ struct EgressesView: View {
                             .font(.caption.monospacedDigit()).foregroundStyle(Theme.teal)
                     }
                     HStack(spacing: 6) {
+                        if egress.kind == .alias && !addressPresent {
+                            Button("添加地址") {
+                                guard let iface, let addr = IPv4Address(egress.localAddress),
+                                      let subnet = iface.addresses.first?.subnet else {
+                                    model.flash("网卡 \(egress.interfaceName) 当前不可用")
+                                    return
+                                }
+                                _ = model.addAlias(on: iface, address: addr, netmask: subnet.netmask)
+                            }
+                            .controlSize(.small)
+                        }
                         Button("登录") { model.login(egress: egress) }
                             .controlSize(.small)
                             .disabled(snapshot.phase == .online || snapshot.phase == .authenticating || egress.accountID == nil)
@@ -215,6 +230,11 @@ struct EgressEditorView: View {
         _wantsAlias = State(initialValue: egress.kind == .alias)
     }
 
+    private var aliasNetmask: String {
+        model.interfaces.first(where: { $0.name == draft.interfaceName })?
+            .addresses.first?.subnet?.netmask.description ?? "255.255.255.0"
+    }
+
     var body: some View {
         VStack(spacing: 0) {
             HStack {
@@ -272,7 +292,12 @@ struct EgressEditorView: View {
                 }
                 if wantsAlias {
                     Section {
-                        Text("保存前需要以管理员权限把 \(draft.localAddress.isEmpty ? "该地址" : draft.localAddress) 添加到 \(draft.interfaceName)。")
+                        Text("保存时会请求管理员权限，执行：")
+                            .font(.caption).foregroundStyle(.secondary)
+                        Text("ifconfig \(draft.interfaceName) alias \(draft.localAddress.isEmpty ? "<地址>" : draft.localAddress) netmask \(aliasNetmask)")
+                            .font(.caption.monospaced()).textSelection(.enabled)
+                            .foregroundStyle(.secondary)
+                        Text("别名只对本次网络连接有效：重启或 Wi-Fi 重连后如果显示「地址未添加到网卡」，在链路卡片上点「添加地址」即可。")
                             .font(.caption).foregroundStyle(.secondary)
                     }
                 }
