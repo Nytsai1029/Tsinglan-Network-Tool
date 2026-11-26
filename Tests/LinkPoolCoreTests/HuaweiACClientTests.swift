@@ -56,6 +56,24 @@ final class HuaweiACClientTests: XCTestCase {
         }
     }
 
+    func testLogoutPostsOprLogout() throws {
+        let server = try TinyHTTPServer { _ in
+            (200, #"{"success":true,"msg":"注销成功"}"#, [:])
+        }
+        defer { server.stop() }
+
+        var settings = PortalSettings()
+        settings.baseURL = URL(string: "http://127.0.0.1:\(server.port)")!
+        settings.huaweiLoginPath = "/ac_portal/login.php"
+        let message = try HuaweiACClient(timeout: 5).logout(base: settings.baseURL, settings: settings, source: nil)
+        XCTAssertEqual(message, "注销成功")
+
+        let request = try XCTUnwrap(server.lastRequest)
+        XCTAssertTrue(request.hasPrefix("POST /ac_portal/login.php HTTP/1.1"))
+        let body = try XCTUnwrap(request.components(separatedBy: "\r\n\r\n").last)
+        XCTAssertEqual(parseForm(body)["opr"], "logout")
+    }
+
     func testStatusDetectsCaptiveRedirect() throws {
         let server = try TinyHTTPServer { _ in
             (302, "", ["Location": "http://127.0.0.1/ac_portal/20231023153358/pc.html"])

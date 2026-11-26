@@ -127,7 +127,7 @@ struct AccountsView: View {
     private var securityNote: some View {
         HStack(alignment: .top, spacing: 8) {
             Image(systemName: "lock.shield").foregroundStyle(.secondary)
-            Text("LinkPool 只读取 /cgi-bin/rad_user_info 判断在线状态；不会自动注销任何会话。自动登录默认关闭，需要逐条链路手动开启。")
+            Text("LinkPool 只用联网探测判断会话是否在线，不会自动注销任何会话。自动登录默认关闭，需要逐条链路手动开启。")
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }

@@ -198,4 +198,39 @@ public final class HuaweiACClient {
                                  accessToken: object["token"] as? String,
                                  message: message.isEmpty ? (userName.map { "登录成功：\($0)" } ?? "登录成功") : message)
     }
+
+    /// Explicit logout. The AC identifies the session by the TCP source
+    /// address, so callers must pass the egress that owns the session.
+    @discardableResult
+    public func logout(base: URL, settings: PortalSettings, source: EgressSource?) throws -> String {
+        guard var components = URLComponents(url: base, resolvingAgainstBaseURL: false) else {
+            throw PortalError.unreachable("门户地址无效")
+        }
+        components.path = settings.huaweiLoginPath
+        guard let url = components.url else { throw PortalError.unreachable("注销地址无效") }
+
+        let headers = [
+            "Referer": base.absoluteString + "/",
+            "Origin": base.absoluteString,
+            "Accept": "application/json, text/javascript, */*; q=0.01",
+            "X-Requested-With": "XMLHttpRequest"
+        ]
+        let response: HTTPResponse
+        do {
+            response = try http.post(url, form: ["opr": "logout"], headers: headers, source: source)
+        } catch {
+            throw PortalError.unreachable(error.localizedDescription)
+        }
+        guard let object = try? JSONSerialization.jsonObject(with: response.body) as? [String: Any] else {
+            throw PortalError.invalidResponse("HTTP \(response.status)")
+        }
+        let success = (object["success"] as? Bool) == true
+            || (object["success"] as? Int) == 1
+            || (object["success"] as? String)?.lowercased() == "true"
+        let message = (object["msg"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        guard success else {
+            throw PortalError.portalError(message.isEmpty ? "注销被拒绝（HTTP \(response.status)）" : message)
+        }
+        return message.isEmpty ? "已注销" : message
+    }
 }

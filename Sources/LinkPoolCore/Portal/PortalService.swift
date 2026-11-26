@@ -31,7 +31,7 @@ public final class PortalService {
                        settings: PortalSettings, source: EgressSource?) throws {
         switch settings.kind {
         case .huaweiAC:
-            throw PortalError.portalError("华为 AC 门户暂不支持程序内注销，请在浏览器中操作")
+            try huawei.logout(base: base, settings: settings, source: source)
         case .srun:
             try srun.logout(username: username, clientIP: clientIP, base: base,
                             settings: settings, source: source)
