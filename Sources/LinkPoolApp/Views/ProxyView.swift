@@ -166,6 +166,11 @@ struct ProxyView: View {
         }
     }
 
+    private func copy(_ text: String) {
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(text, forType: .string)
+    }
+
     private var usage: some View {
         Card {
             VStack(alignment: .leading, spacing: 10) {
@@ -180,10 +185,34 @@ struct ProxyView: View {
                         .font(.system(.caption, design: .monospaced)).textSelection(.enabled)
                 }
                 Divider()
-                Text("示例：curl -x http://\(model.proxyAddress) https://speed.cloudflare.com/__down?bytes=100000000")
-                    .font(.system(.caption2, design: .monospaced))
-                    .foregroundStyle(.secondary)
-                    .textSelection(.enabled)
+                VStack(alignment: .leading, spacing: 6) {
+                    HStack {
+                        Text("单连接测速").font(.caption2.weight(.semibold)).foregroundStyle(.secondary)
+                        Spacer()
+                        Button("复制") {
+                            copy("curl -x http://\(model.proxyAddress) https://speed.cloudflare.com/__down?bytes=100000000")
+                        }
+                        .buttonStyle(.link).font(.caption2)
+                    }
+                    Text("curl -x http://\(model.proxyAddress) https://speed.cloudflare.com/__down?bytes=100000000")
+                        .font(.system(.caption2, design: .monospaced))
+                        .foregroundStyle(.secondary)
+                        .textSelection(.enabled)
+                }
+                VStack(alignment: .leading, spacing: 6) {
+                    HStack {
+                        Text("多连接加速下载（aria2）").font(.caption2.weight(.semibold)).foregroundStyle(.secondary)
+                        Spacer()
+                        Button("复制") {
+                            copy("aria2c -x16 -s16 -k1M --all-proxy=socks5h://\(model.proxyAddress) \"URL\"")
+                        }
+                        .buttonStyle(.link).font(.caption2)
+                    }
+                    Text("aria2c -x16 -s16 -k1M --all-proxy=socks5h://\(model.proxyAddress) \"URL\"")
+                        .font(.system(.caption2, design: .monospaced))
+                        .foregroundStyle(.secondary)
+                        .textSelection(.enabled)
+                }
             }
         }
     }
